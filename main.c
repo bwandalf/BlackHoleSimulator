@@ -29,6 +29,7 @@ typedef struct
 
 Ray rays[NUM_RAYS];
 
+//for 2d spaces
 vec2 vec2_add(vec2 a, vec2 b)
 {
     vec2 res = {a.x + b.x, a.y + b.y};
@@ -54,6 +55,33 @@ vec2 vec2_normalize(vec2 v) {
     if (len == 0.0) return (vec2){0.0, 0.0};
     return (vec2){v.x / len, v.y / len};
 }
+
+//for 3d spaces
+vec3 vec3_add(vec3 a, vec3 b) {
+    vec3 res = {a.x + b.x, a.y + b.y, a.z + b.z};
+    return res;
+}
+
+vec3 vec3_scale(vec3 v, double scalar) {
+    vec3 res = {v.x * scalar, v.y * scalar, v.z * scalar};
+    return res;
+}
+
+vec3 vec3_sub(vec3 a, vec3 b) {
+    vec3 res = {a.x - b.x, a.y - b.y, a.z - b.z};
+    return res;
+}
+
+double vec3_length(vec3 v) {
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+vec3 vec3_normalize(vec3 v) {
+    double len = vec3_length(v);
+    if (len == 0.0) return (vec2){0.0, 0.0, 0.0}; // Or (vec3){0.0, 0.0, 0.0}
+    return (vec3){v.x / len, v.y / len, v.z / len};
+}
+
 
 struct Engine {
     GLFWwindow* window;
