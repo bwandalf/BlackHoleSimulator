@@ -7,6 +7,7 @@
 #endif
 
 #define NUM_RAYS 50
+#define TRAIL_LENGTH 20
 
 double lastPrintTime = 0.0;
 int    framesCount   = 0;
@@ -18,6 +19,12 @@ typedef struct
     double x;
     double y;
 } vec2;
+typedef struct
+{
+    double x;
+    double y;
+    double z;
+}vec3;
 
 typedef struct
 {
@@ -25,11 +32,14 @@ typedef struct
     vec2 dir;
     double L;
     int active;
+    vec2 trail[TRAIL_LENGTH];
+    int trailHead;
+    int trailCount;
+
 } Ray;
 
 Ray rays[NUM_RAYS];
 
-//for 2d spaces
 vec2 vec2_add(vec2 a, vec2 b)
 {
     vec2 res = {a.x + b.x, a.y + b.y};
@@ -55,6 +65,15 @@ vec2 vec2_normalize(vec2 v) {
     if (len == 0.0) return (vec2){0.0, 0.0};
     return (vec2){v.x / len, v.y / len};
 }
+double Square(double x)
+{
+    return x * x;
+}
+
+double PO4 (double x)
+{
+    return x * x * x * x;
+}
 
 //for 3d spaces
 vec3 vec3_add(vec3 a, vec3 b) {
@@ -76,11 +95,11 @@ double vec3_length(vec3 v) {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
-vec3 vec3_normalize(vec3 v) {
+/*vec3 vec3_normalize(vec3 v) {
     double len = vec3_length(v);
-    if (len == 0.0) return (vec2){0.0, 0.0, 0.0}; // Or (vec3){0.0, 0.0, 0.0}
+    if (len == 0.0) return (vec2){0.0, 0.0, 0.0};
     return (vec3){v.x / len, v.y / len, v.z / len};
-}
+}*/
 
 
 struct Engine {
@@ -119,6 +138,10 @@ int engine_init(struct Engine* engine)
     glViewport(0,0, engine ->WIDTH, engine ->HEIGHT);
     glfwSetFramebufferSizeCallback(engine -> window, framebuffer_size_callback);
 
+    // Enable transparency for faded trail rendering
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     return 0;
 }
 
@@ -151,6 +174,8 @@ void rays_init(struct Engine* engine) {
         rays[i].pos = (vec2){startX, startY_min + i * stepY};
         rays[i].dir = (vec2){c, 0.0};
         rays[i].active = 1;
+        rays[i].trailHead = 0;
+        rays[i].trailCount = 0;
         vec2 relPos = vec2_sub(rays[i].pos, bh.pos);
         rays[i].L = relPos.x * rays[i].dir.y - relPos.y * rays[i].dir.x;
     }
@@ -179,11 +204,34 @@ void drawCircle(struct Blackhole* blackhole, struct Engine* engine, int segments
 
 }
 
-void drawRays(struct Engine* engine) {
+void drawTrails(struct Engine* engine)
+{
+    glLineWidth(1.5f);
+    for (int i = 0; i < NUM_RAYS; i++)
+    {
+        if (rays[i].trailCount < 2) continue;
+
+        glBegin(GL_LINE_STRIP);
+        for (int j = 0; j < rays[i].trailCount; j++)
+        {
+            int idx = (rays[i].trailHead - 1 - j + TRAIL_LENGTH) % TRAIL_LENGTH;
+            float alpha = 1.0f - (float)j / (float)TRAIL_LENGTH;
+            glColor4f(1.0f, 1.0f, 0.0f, alpha);
+            float ndcX = (float)(rays[i].trail[idx].x / (engine->width / 2.0));
+            float ndcY = (float)(rays[i].trail[idx].y / (engine->height / 2.0));
+            glVertex2f(ndcX, ndcY);
+        }
+        glEnd();
+    }
+}
+
+void drawRays(struct Engine* engine)
+{
     glPointSize(4.0f);
     glColor3f(1.0f, 1.0f, 0.0f);
     glBegin(GL_POINTS);
-    for (int i = 0; i < NUM_RAYS; i++) {
+    for (int i = 0; i < NUM_RAYS; i++)
+    {
         if (!rays[i].active) continue;
 
         float ndcX = (float)(rays[i].pos.x / (engine->width / 2.0));
@@ -198,20 +246,31 @@ void update_ray(Ray* ray, struct Blackhole* bh, double dt) {
     if (!ray->active) {
         return;
     }
+
+    ray->trail[ray->trailHead] = ray->pos;
+    ray->trailHead = (ray->trailHead + 1) % TRAIL_LENGTH;
+    if (ray->trailCount < TRAIL_LENGTH) ray->trailCount++;
+
     vec2 r = vec2_sub(bh->pos, ray->pos);
     double dist = vec2_length(r);
 
-    if (dist <= bh -> r_s) {
+    if (dist <= bh -> r_s)
+    {
         ray ->active = 0;
+        ray -> trailCount = 0;
         return;
     }
 
+
+
     vec2 dir_to_bh = vec2_normalize(r);
-    double accel_mag = 1.5 * bh->r_s * ray->L * ray->L / (dist * dist * dist * dist);
+    double accel_mag = 1.5 * bh->r_s * ray->L * ray->L / (PO4(dist));
     vec2 accel = vec2_scale(dir_to_bh, accel_mag);
     ray->dir = vec2_add(ray->dir, vec2_scale(accel, dt));
     ray->dir = vec2_scale(vec2_normalize(ray->dir), c);
     ray->pos = vec2_add(ray->pos, vec2_scale(ray->dir, dt));
+
+
 }
 
 void engine_run(struct Engine* engine, struct Blackhole* bh)
@@ -225,6 +284,7 @@ void engine_run(struct Engine* engine, struct Blackhole* bh)
         }
 
         drawCircle(bh, engine, 64);
+        drawTrails(engine);
         drawRays(engine);
 
         glfwSwapBuffers(engine -> window);
