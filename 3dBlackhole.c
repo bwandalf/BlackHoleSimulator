@@ -7,7 +7,9 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define NUM_RAYS 60
+#define GRID_COLS 6
+#define GRID_ROWS 10
+#define NUM_RAYS (GRID_COLS * GRID_ROWS)
 #define TRAIL_LENGTH 40
 
 double c = 1.0;
@@ -32,6 +34,8 @@ typedef struct {
     vec3 trail[TRAIL_LENGTH];
     int trailHead;
     int trailCount;
+    double initialY;
+    double initialZ;
 } Ray;
 
 Ray rays[NUM_RAYS];
@@ -227,8 +231,10 @@ void blackhole_init(struct Blackhole* bh) {
     bh->r_s = (2.0 * G * bh->mass) / (c * c);
 }
 
-void spawn_single_ray(int idx, double startY) {
-    rays[idx].pos = (vec3){-18.0, startY, 0.0};
+void spawn_single_ray(int idx, double startY, double startZ) {
+    rays[idx].initialY = startY;
+    rays[idx].initialZ = startZ;
+    rays[idx].pos = (vec3){-18.0, startY, startZ};
     rays[idx].dir = (vec3){c, 0.0, 0.0};
     rays[idx].active = 1;
     rays[idx].trailHead = 0;
@@ -240,12 +246,20 @@ void spawn_single_ray(int idx, double startY) {
 }
 
 void rays_init(struct Engine* engine) {
-    double startY_min = -7.0;
-    double startY_max = 7.0;
-    double stepY = (startY_max - startY_min) / NUM_RAYS;
+    double y_min = -6.0;
+    double y_max = 6.0;
+    double z_min = -5.0;
+    double z_max = 5.0;
 
-    for (int i = 0; i < NUM_RAYS; i++) {
-        spawn_single_ray(i, startY_min + i * stepY);
+    int idx = 0;
+    for (int r = 0; r < GRID_ROWS; r++) {
+        for (int col = 0; col < GRID_COLS; col++) {
+            double startY = y_min + (r / (double)(GRID_ROWS - 1)) * (y_max - y_min);
+            double startZ = z_min + (col / (double)(GRID_COLS - 1)) * (z_max - z_min);
+            
+            spawn_single_ray(idx, startY, startZ);
+            idx++;
+        }
     }
 }
 
@@ -308,10 +322,7 @@ void drawRays(void) {
 
 void update_ray(Ray* ray, struct Blackhole* bh, double dt, int index) {
     if (!ray->active) {
-        double startY_min = -7.0;
-        double startY_max = 7.0;
-        double stepY = (startY_max - startY_min) / NUM_RAYS;
-        spawn_single_ray(index, startY_min + index * stepY);
+        spawn_single_ray(index, ray->initialY, ray->initialZ);
         return;
     }
 
